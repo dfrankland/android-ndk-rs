@@ -87,6 +87,20 @@ impl MainAttr {
                 .into_iter(),
         );
 
+        // The original ndk-macro expand() method
+        // contained generated code by using the preamble
+        // defined above, and calling glue_crate::init(...)
+        // which would do a lot of the initialization stuff that
+        // sokol does for us, and then ultimately call the
+        // main_fn_item (it calls it via #main_fn_name defined above).
+        // we on the other hand, do not use the glue_crate::init.
+        // instead, we will defer the initialization to sokol, so
+        // all that we will do is call the sapp_ANativeActivity_onCreate
+        // which will do its own initialization stuff, and will eventually call
+        // sokol_main, which it expects us to define. so we also define
+        // that below, which that is where we will simply call the actual
+        // main function that the user provided.
+
         quote! {
             #[no_mangle]
             unsafe extern "C" fn ANativeActivity_onCreate(
@@ -94,17 +108,18 @@ impl MainAttr {
                 saved_state: *mut std::os::raw::c_void,
                 saved_state_size: usize,
             ) {
-                #(#preamble)*
-                #glue_crate::init(
-                    activity as _,
-                    saved_state as _,
-                    saved_state_size as _,
-                    #main_fn_name,
-                );
+                ::miniquad::sapp_android::sapp_ANativeActivity_onCreate(
+                    activity, saved_state, saved_state_size as _);
             }
 
             #main_fn_item
+
+            #[no_mangle]
+            pub unsafe extern "C" fn sokol_main() {
+                let _ = #main_fn_name();
+            }
         }
+
     }
 }
 

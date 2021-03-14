@@ -38,8 +38,11 @@ include!("ffi_i686.rs");
 #[cfg(all(any(target_os = "android", feature = "test"), target_arch = "x86_64"))]
 include!("ffi_x86_64.rs");
 
+// EGL and GLESv3 is required for miniquad
 #[cfg(target_os = "android")]
 #[link(name = "android")]
+#[link(name = "EGL")]
+#[link(name = "GLESv3")]
 extern "C" {}
 
 #[cfg(all(feature = "media", target_os = "android"))]
