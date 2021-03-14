@@ -1,3 +1,87 @@
+# Fork notes:
+
+The following are notes from this fork of android-ndk-rs:
+
+This was forked in order to use the latest android-ndk-rs project in miniquad for android. Previously, miniquad for android required an older fork of android-ndk-glue (now deprecated) and it successfully built on an older version of rust. This would cause conflicts with packages that required newer rust versions. This fork basically replicates the changes done by [not-fl3 here](https://github.com/rust-windowing/android-rs-glue/commit/cf76e53e96e4d08e25fd90d609ad2a9e94e732f6).
+
+Also I added a dockerfile similarly to what he had in his fork.
+
+To use this fork with miniquad you would do:
+
+1. prepare docker image
+```sh
+# get the miniquad fork of android-ndk-rs
+# and checkout the branch where the fork resides (miniglue)
+git clone https://github.com/nikita-skobov/android-ndk-rs
+cd android-ndk-rs
+git fetch origin && git checkout miniglue
+
+# create the docker image to be able to easily
+# cross compile for android
+docker build -t miniglue .
+```
+2. go to a different folder, and make your sample project. make sure to make it a `--lib` so the android-ndk-rs glue macro works correctly (maybe its possible it will work with --bin but im not sure)
+```
+cargo new --lib miniquadandroid && cd miniquadandroid
+```
+
+3. Add the following to the Cargo.toml:
+```
+[dependencies]
+miniquad = { version = "*", features = ["log-impl"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+ndk = { git = "https://github.com/nikita-skobov/android-ndk-rs", branch = "miniglue" }
+ndk-glue = { git = "https://github.com/nikita-skobov/android-ndk-rs", branch = "miniglue" }
+
+[[example]]
+name = "androidexample"
+crate-type = ["cdylib"]
+```
+4. `mkdir examples && echo "" > examples/androidexample.rs`
+5. edit the example file you just made and add some simple miniquad example like:
+```
+use miniquad::*;
+
+#[cfg_attr(target_os = "android", ndk_glue::main())]
+fn main() {
+    realmain();
+}
+
+
+struct Stage;
+impl EventHandler for Stage {
+    fn update(&mut self, _ctx: &mut miniquad::Context) {}
+
+    fn draw(&mut self, ctx: &mut miniquad::Context) {
+        ctx.clear(Some((0., 1., 0., 1.)), None, None);
+    }
+}
+
+
+pub fn realmain() {
+    // test to make sure logging works on android:
+    info!("EEEEEEEEEEE eee eeee");
+    miniquad::start(miniquad::conf::Conf::default(), |ctx| miniquad::UserData::owning(Stage, ctx));
+}
+```
+The important part here is the `cfg_attr` where we use the modified `ndk_glue::main` macro. This essentially generates some code that properly calls the correct android ndk, and sokol functions. when that auto-generated initialization is done, their code will call our main, which we use to call the `realmain`.
+6. Compile by first going into your docker image:
+```
+docker run -it --rm -v $(pwd):/root/src -w /root/src miniglue
+```
+7. Once you're in the docker image, you can compile by doing:
+```
+cargo apk build --example androidexample
+```
+8. If successful, you should be able to see your .apk file in:
+```
+target/debug/apk/examples/androidpls.apk
+```
+
+Everything below is the original readme:
+
+
 # Rust on Android
 
 [![Rust](https://github.com/rust-windowing/android-ndk-rs/workflows/Rust/badge.svg)](https://github.com/rust-windowing/android-ndk-rs/actions) ![MIT license](https://img.shields.io/badge/License-MIT-green.svg) ![APACHE2 license](https://img.shields.io/badge/License-APACHE2-green.svg)
